@@ -12,109 +12,130 @@ namespace PapyrusToSublimeSnippets
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Insert path to directory containing Papyrus source files (defaults to executable's current location, if left empty)\n(example: C:\\Downloads\\skse_1_07_00\\Data\\scripts\\Source)");
-            string PapyrusDir = Console.ReadLine();
-            Console.WriteLine("Insert path to output directory (defaults to \"snippets\" subfolder in executable's current location, if left empty)\n(example: C:\\Downloads\\skse_1_07_00\\Data\\scripts\\Source\\out)");
-            string OutputDir = Console.ReadLine();
-            if (PapyrusDir.Equals(""))
+            Console.WriteLine("Insert path to directory containing Papyrus source files (defaults to executable's current location, if left empty)\n(example: C:\\Downloads\\skse_1_07_00\\Data\\Scripts\\Source)");
+            string SourceDir = Console.ReadLine();
+            if (SourceDir.Equals(""))
             {
-                PapyrusDir = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
+                SourceDir = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
             }
-            if (OutputDir.Equals(""))
-            {
-                OutputDir = PapyrusDir + "\\snippets";
-            }
-            if (!Directory.Exists(OutputDir))
-            {
-                Directory.CreateDirectory(OutputDir);
-            }
-            string[] files = Directory.GetFiles(PapyrusDir, "*.psc");
-            Console.WriteLine("{0} files found", files.Length);
+            string OutputDirName = "\\snippets"; //Determines the name of the folder that contains the generated snippets
+            StreamWriter funcLog = new StreamWriter(SourceDir + "\\FunctionLog.txt", false);
+            StreamWriter classLog = new StreamWriter(SourceDir + "\\ClassLog.txt", false);
             int CountFunctions = 0;
             int CountEvent = 0;
-            Regex rx = new Regex(@"(?<=[(|,]\s*)\w+(\[\])?\s+\w+(\s+[=]+\s+\w+)?");
-            Regex EventPattern = new Regex(@"(?i)^\s*\b(event)");
-            Regex FunctionPattern = new Regex(@"(?i)^(\s*\w+\s+)?\b(function)");
-            StreamWriter funcLog = new StreamWriter(OutputDir + "\\FunctionLog.txt", false);
-            StreamWriter classLog = new StreamWriter(OutputDir + "\\ClassLog.txt", false);
-            foreach (string file in files)
+            string[] SourceSubDirs = Directory.GetDirectories(SourceDir);
+            if ((SourceSubDirs.Length == 0) || ((SourceSubDirs.Length == 1) && (SourceSubDirs[0].Equals(SourceDir + OutputDirName)))) //No valid subdirectories were found, so process the source directory itself
             {
-                string FileName = Path.GetFileNameWithoutExtension(file);
-                StreamReader sr = new StreamReader(file);
-                Console.WriteLine("working on file: " + FileName);
-                string line;
-                while ((line = sr.ReadLine()) != null)
-                {
-                    if (EventPattern.IsMatch(line) || FunctionPattern.IsMatch(line))
-                    {
-                        string checkingline = line.ToLower();
-                        int startName = 0;
-                        if (checkingline.Contains("function"))
-	                    {
-	                        startName = checkingline.IndexOf("function") + 9;	 
-	                    }
-                        else if(checkingline.Contains("event"))
-                        {
-                            startName = checkingline.IndexOf("event") + 6;
-                        }
+                SourceSubDirs = new string[1];
+                SourceSubDirs[0] = SourceDir;
+            }
 
-                        int endName = line.IndexOf('(');
-                        string FunctionName = line.Substring(startName, (endName - startName));
-                        string Parameters = line.Substring(endName, (line.Length - endName));
-                        StreamWriter sw = new StreamWriter(OutputDir + "\\" + FileName + "." + FunctionName + ".sublime-snippet", false);
-                        MatchCollection matches = rx.Matches(Parameters);
-                        sw.WriteLine("<snippet>");
-                        sw.WriteLine("\t<tabTrigger>" + FunctionName + "</tabTrigger>");
-                        sw.WriteLine("\t<scope>source.papyrus</scope>");
-                        sw.WriteLine("\t<description>" + FileName + "." + FunctionName + "</description>");
-                        
-                        if (EventPattern.IsMatch(line))
-	                    {
-		                    sw.Write("\t<content><![CDATA[Event " + FunctionName + "(");
-                            int i = 1;
-                            if (matches.Count > 0)
-                            {
-                                foreach (Match match in matches)
-                                {
-                                    sw.Write("${" + i + ":" + match + "}");
-                                    if (matches[matches.Count - 1] != match)
-                                    {
-                                        sw.Write(", ");
-                                    }
-                                    i++;
-                                }
-                            }
-                            sw.Write(")\n${0}\nEndEvent]]></content>\n");
-                            sw.WriteLine("</snippet>");
-                            CountEvent++;
-	                    }
-                        else if(FunctionPattern.IsMatch(line))
+            List<string> generatedSnippets = new List<string>(); //Bookkeeping that is used to prevent generating duplicate snippets when processing for example vanilla and SKSE .psc files
+            List<string> processedClasses = new List<string>(); //Bookkeeping that is used to prevent multiple entries of the same class in ClassLog.txt
+            foreach (string SubDir in SourceSubDirs)
+            {
+                if (!SubDir.Equals(SourceDir + OutputDirName)) //No need to process output folders
+                {
+                    string[] files = Directory.GetFiles(SubDir, "*.psc");
+                    Console.WriteLine("{0} file(s) found in " + SubDir, files.Length);
+                    Regex rx = new Regex(@"(?<=[(|,]\s*)\w+(\[\])?\s+\w+(\s+[=]+\s+\w+)?");
+                    Regex EventPattern = new Regex(@"(?i)^\s*\b(event)");
+                    Regex FunctionPattern = new Regex(@"(?i)^(\s*\w+\s+)?\b(function)");
+
+                    foreach (string file in files)
+                    {
+                        string FileName = Path.GetFileNameWithoutExtension(file);
+                        StreamReader sr = new StreamReader(file);
+                        Console.WriteLine("Working on file: " + FileName);
+                        string line;
+                        while ((line = sr.ReadLine()) != null)
                         {
-                            sw.Write("\t<content><![CDATA[" + FunctionName + "(");
-                            int i = 1;
-                            if (matches.Count > 0)
+                            if (EventPattern.IsMatch(line) || FunctionPattern.IsMatch(line))
                             {
-                                foreach (Match match in matches)
+                                string checkingline = line.ToLower();
+                                int startName = 0;
+                                if (checkingline.Contains("function"))
                                 {
-                                    sw.Write("${" + i + ":" + match + "}");
-                                    if (matches[matches.Count - 1] != match)
+                                    startName = checkingline.IndexOf("function") + 9;
+                                }
+                                else if (checkingline.Contains("event"))
+                                {
+                                    startName = checkingline.IndexOf("event") + 6;
+                                }
+
+                                int endName = line.IndexOf('(');
+                                string FunctionName = line.Substring(startName, (endName - startName));
+                                string SnippetPattern = FileName + "." + FunctionName; //Determines the name of the generated snippets
+                                if (!generatedSnippets.Contains(SnippetPattern)) //If a snippet has been generated for the current function/event, then duplicates shouldn't be generated
+                                {
+                                    string Parameters = line.Substring(endName, (line.Length - endName));
+                                    string OutputDir = SubDir + OutputDirName;
+                                    if (!Directory.Exists(OutputDir))
                                     {
-                                        sw.Write(", ");
+                                        Directory.CreateDirectory(OutputDir);
                                     }
-                                    i++;
+                                    StreamWriter sw = new StreamWriter(OutputDir + "\\" + SnippetPattern + ".sublime-snippet", false);
+                                    MatchCollection matches = rx.Matches(Parameters);
+                                    sw.WriteLine("<snippet>");
+                                    sw.WriteLine("\t<tabTrigger>" + FunctionName + "</tabTrigger>");
+                                    sw.WriteLine("\t<scope>source.papyrus</scope>");
+                                    sw.WriteLine("\t<description>" + FileName + "." + FunctionName + "</description>");
+
+                                    if (EventPattern.IsMatch(line))
+                                    {
+                                        sw.Write("\t<content><![CDATA[Event " + FunctionName + "(");
+                                        int i = 1;
+                                        if (matches.Count > 0)
+                                        {
+                                            foreach (Match match in matches)
+                                            {
+                                                sw.Write("${" + i + ":" + match + "}");
+                                                if (matches[matches.Count - 1] != match)
+                                                {
+                                                    sw.Write(", ");
+                                                }
+                                                i++;
+                                            }
+                                        }
+                                        sw.Write(")\n${0}\nEndEvent]]></content>\n");
+                                        sw.WriteLine("</snippet>");
+                                        CountEvent++;
+                                    }
+                                    else if (FunctionPattern.IsMatch(line))
+                                    {
+                                        sw.Write("\t<content><![CDATA[" + FunctionName + "(");
+                                        int i = 1;
+                                        if (matches.Count > 0)
+                                        {
+                                            foreach (Match match in matches)
+                                            {
+                                                sw.Write("${" + i + ":" + match + "}");
+                                                if (matches[matches.Count - 1] != match)
+                                                {
+                                                    sw.Write(", ");
+                                                }
+                                                i++;
+                                            }
+                                        }
+                                        sw.Write(")]]></content>\n");
+                                        sw.WriteLine("</snippet>");
+                                        CountFunctions++;
+                                    }
+                                    funcLog.Write(FunctionName.ToLower() + "|");
+                                    sw.Close();
+                                    generatedSnippets.Add(FileName + "." + FunctionName); //Adds the generated snippet to the list so that duplicates aren't generated
+                                    Console.WriteLine("\t" + SnippetPattern + ".sublime-snippet" + " Created!");
                                 }
                             }
-                            sw.Write(")]]></content>\n");
-                            sw.WriteLine("</snippet>");
-                            CountFunctions++;
                         }
-                        funcLog.Write(FunctionName.ToLower() + "|");
-                        sw.Close();
-                        Console.WriteLine("\t" + FileName + "." + FunctionName + ".sublime-snippet" + " Created!");
+                        if (!processedClasses.Contains(FileName)) //If the class, which is being processed, hasn't been processed earlier, then it can be added to the ClassLog.txt file
+                        {
+                            classLog.Write(FileName.ToLower() + "|");
+                            processedClasses.Add(FileName);
+                        }
+                        sr.Close();
                     }
                 }
-                classLog.Write(FileName.ToLower() + "|");
-                sr.Close();
             }
             funcLog.Close();
             classLog.Close();
