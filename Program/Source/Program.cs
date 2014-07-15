@@ -23,13 +23,9 @@ namespace PapyrusToSublimeSnippets
             StreamWriter classLog = new StreamWriter(SourceDir + "\\ClassLog.txt", false);
             int CountFunctions = 0;
             int CountEvent = 0;
-            string[] SourceSubDirs = Directory.GetDirectories(SourceDir);
-            if ((SourceSubDirs.Length == 0) || ((SourceSubDirs.Length == 1) && (SourceSubDirs[0].Equals(SourceDir + OutputDirName)))) //No valid subdirectories were found, so process the source directory itself
-            {
-                SourceSubDirs = new string[1];
-                SourceSubDirs[0] = SourceDir;
-            }
-
+            List<string> SourceSubDirs = new List<string>();
+            SourceSubDirs.Add(SourceDir);
+            SourceSubDirs.AddRange(Directory.GetDirectories(SourceDir));
             List<string> generatedSnippets = new List<string>(); //Bookkeeping that is used to prevent generating duplicate snippets when processing for example vanilla and SKSE .psc files
             List<string> processedClasses = new List<string>(); //Bookkeeping that is used to prevent multiple entries of the same class in ClassLog.txt
             foreach (string SubDir in SourceSubDirs)
@@ -41,7 +37,6 @@ namespace PapyrusToSublimeSnippets
                     Regex rx = new Regex(@"(?<=[(|,]\s*)\w+(\[\])?\s+\w+(\s+[=]+\s+\w+)?");
                     Regex EventPattern = new Regex(@"(?i)^\s*\b(event)");
                     Regex FunctionPattern = new Regex(@"(?i)^(\s*\w+\s+)?\b(function)");
-
                     foreach (string file in files)
                     {
                         string FileName = Path.GetFileNameWithoutExtension(file);
@@ -80,7 +75,6 @@ namespace PapyrusToSublimeSnippets
                                     sw.WriteLine("\t<tabTrigger>" + FunctionName + "</tabTrigger>");
                                     sw.WriteLine("\t<scope>source.papyrus</scope>");
                                     sw.WriteLine("\t<description>" + FileName + "." + FunctionName + "</description>");
-
                                     if (EventPattern.IsMatch(line))
                                     {
                                         sw.Write("\t<content><![CDATA[Event " + FunctionName + "(");
