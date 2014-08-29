@@ -26,3 +26,7 @@ Based on the work done by Bethesda Game Studios and Mark Hanna. Used according t
 Program, for automated creation of snippets, created by Quad2Core.
 
 Team: Quad2Core, MrJack
+
+This version of the Sublime compiler command supports compiling scripts opened through Mod Organizer or through Creation Kit through Mod Organizer.
+
+The INI now contains path variables.  Each path variabe in the INI will be passed to the papyrus compiler as an import directory so that script dependencies are available to scripts, even if located in Mod Organizer mods.
